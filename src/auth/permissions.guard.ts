@@ -3,15 +3,16 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
-} from "@nestjs/common";
-import { Reflector } from "@nestjs/core";
-import type { Permission } from "@crm/shared";
-import { permissionsKey } from "./permissions.decorator";
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import type { Permission } from '@crm/shared';
+import { permissionsKey } from './permissions.decorator';
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
+    if (context.getType() !== 'http') return true;
     const requiredPermissions = this.reflector.getAllAndOverride<Permission[]>(
       permissionsKey,
       [context.getHandler(), context.getClass()],
@@ -29,7 +30,7 @@ export class PermissionsGuard implements CanActivate {
       userPermissions.includes(permission),
     );
     if (!hasAll) {
-      throw new ForbiddenException("Insufficient permissions");
+      throw new ForbiddenException('Insufficient permissions');
     }
     return true;
   }

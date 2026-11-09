@@ -1,16 +1,16 @@
-import type { IncomingHttpHeaders } from "node:http";
+import type { IncomingHttpHeaders } from 'node:http';
 import {
   CanActivate,
   ExecutionContext,
   Inject,
   Injectable,
   UnauthorizedException,
-} from "@nestjs/common";
-import { Reflector } from "@nestjs/core";
-import { fromNodeHeaders } from "better-auth/node";
-import { getPermissionsForRole, type Actor } from "@crm/shared";
-import { AUTH, type Auth } from "./better-auth";
-import { isPublicKey } from "./public.decorator";
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { fromNodeHeaders } from 'better-auth/node';
+import { getPermissionsForRole, type Actor } from '@crm/shared';
+import { AUTH, type Auth } from './better-auth';
+import { isPublicKey } from './public.decorator';
 
 @Injectable()
 export class SessionAuthGuard implements CanActivate {
@@ -20,6 +20,7 @@ export class SessionAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (context.getType() !== 'http') return true;
     const isPublic = this.reflector.getAllAndOverride<boolean>(isPublicKey, [
       context.getHandler(),
       context.getClass(),

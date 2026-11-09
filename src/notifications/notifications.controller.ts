@@ -4,69 +4,87 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Put,
   Req,
   Res,
-} from "@nestjs/common";
-import type { Request, Response } from "express";
-import { randomUUID } from "crypto";
-import { CurrentUser, type Actor } from "../auth/current-user.decorator";
-import { NotificationsService } from "./notifications.service";
-import { NotificationsSseHub } from "./notifications-sse.hub";
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { randomUUID } from 'crypto';
+import { CurrentUser, type Actor } from '../auth/current-user.decorator';
+import { NotificationsSseHub } from './notifications-sse.hub';
 import {
   notificationHeartbeatMs,
   notificationSseEvents,
-} from "./notifications.constants";
+} from './notifications.constants';
+import { NotificationsClient } from './notifications.client';
+import { messagesNotifications } from '@crm/shared';
 
-@Controller("/api/notifications")
+@Controller('/api/notifications')
 export class NotificationsController {
   constructor(
-    private readonly notificationsService: NotificationsService,
+    private readonly notificationClient: NotificationsClient,
     private readonly sseHub: NotificationsSseHub,
   ) {}
 
   @Get()
   list(@CurrentUser() actor: Actor) {
-    return this.notificationsService.listForUser(actor.id);
+    return this.notificationClient.send(
+      messagesNotifications.notificationList,
+      { userId: actor.id },
+    );
   }
 
-  @Get("sse")
+  @Get('sse')
   stream(
     @Req() req: Request,
     @Res() res: Response,
     @CurrentUser() actor: Actor,
   ): void {
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache, no-transform");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders?.();
 
     const connectionId = randomUUID();
     this.sseHub.add(actor.id, connectionId, res);
     this.sseHub.send(
       res,
-      { message: "Connected to notifications" },
+      { message: 'Connected to notifications' },
       notificationSseEvents.conected,
     );
     const heartbeat = setInterval(() => {
       this.sseHub.ping(res);
     }, notificationHeartbeatMs);
-    req.on("close", () => {
+    req.on('close', () => {
       clearInterval(heartbeat);
       this.sseHub.remove(actor.id, connectionId);
     });
   }
-  @Put("read-all")
+  @Put('read-all')
   markAllAsRead(@CurrentUser() actor: Actor) {
-    return this.notificationsService.markAllAsRead(actor.id);
+    return this.notificationClient.send(
+      messagesNotifications.notificationsMarkAllAsRead,
+      { userId: actor.id },
+    );
   }
   @Delete()
   markAllDetele(@CurrentUser() actor: Actor) {
-    return this.notificationsService.markAllDelete(actor.id);
+    return this.notificationClient.send(
+      messagesNotifications.notificationsDeleteAll,
+      { userId: actor.id },
+    );
   }
-  @Put(":id/read")
-  markAsRead(@Param("id") id: string, @CurrentUser() actor: Actor) {
-    return this.notificationsService.markAsRead(actor.id, id);
+
+  @Put(':id/read')
+  markAsRead(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.notificationClient.send(
+      messagesNotifications.notificationsMarkAsRead,
+      { userId: actor.id, id },
+    );
   }
 }

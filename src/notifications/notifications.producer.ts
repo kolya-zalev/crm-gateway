@@ -1,39 +1,66 @@
-import { Injectable } from "@nestjs/common";
-import { Queue } from "bullmq";
-import { InjectQueue } from "@nestjs/bullmq";
-import { NamesQueues } from "../queues/queues.constants";
-import { NotificationsService } from "./notifications.service";
-import { notificationsJobs } from "./notifications.constants";
+import { Injectable } from '@nestjs/common';
+import { NotificationsClient } from './notifications.client';
+import { UsersService } from '../users/users.service';
+import {
+  eventsNotifications,
+  LeadAssignedEvent,
+  LeadClosedEvent,
+  LeadStatusChangedEvent,
+  permissions,
+  TaskCreatedEvent,
+  TaskDeletedEvent,
+} from '@crm/shared';
 @Injectable()
 export class NotificationsProducer {
   constructor(
-    @InjectQueue(NamesQueues.notifications)
-    private readonly notificationsQueue: Queue,
+    private readonly notificationsClient: NotificationsClient,
+    private readonly users: UsersService,
   ) {}
-  leadAssigned(
-    params: Parameters<NotificationsService["notifyLeadAssigned"]>[0],
-  ) {
-    return this.notificationsQueue.add(notificationsJobs.leadAssigned, params);
+  private async getLeaderIds(): Promise<string[]> {
+    const leaders = await this.users.findByPermission(
+      permissions.notificationLeadEvents,
+    );
+    return leaders.map((leader) => leader.id);
   }
-  leadClosed(params: Parameters<NotificationsService["notifyLeadClosed"]>[0]) {
-    return this.notificationsQueue.add(notificationsJobs.leadClosed, params);
+  async leadAssigned(params: Omit<LeadAssignedEvent, 'leaderIds'>) {
+    const leaderIds = await this.getLeaderIds();
+    return this.notificationsClient.emit(eventsNotifications.leadAssigned, {
+      ...params,
+      leaderIds,
+    });
   }
-  leadStatusChanged(
-    params: Parameters<NotificationsService["notifyLeadStatusChanged"]>[0],
-  ) {
-    return this.notificationsQueue.add(
-      notificationsJobs.leadStatusChanged,
-      params,
+  async leadClosed(params: Omit<LeadClosedEvent, 'leaderIds'>) {
+    const leaderIds = await this.getLeaderIds();
+    return this.notificationsClient.emit(eventsNotifications.leadClosed, {
+      ...params,
+      leaderIds,
+    });
+  }
+  async leadStatusChanged(params: Omit<LeadStatusChangedEvent, 'leaderIds'>) {
+    const leaderIds = await this.getLeaderIds();
+
+    return this.notificationsClient.emit(
+      eventsNotifications.leadStatusChanged,
+      {
+        ...params,
+        leaderIds,
+      },
     );
   }
-  taskCreated(
-    params: Parameters<NotificationsService["notifyTaskCreated"]>[0],
-  ) {
-    return this.notificationsQueue.add(notificationsJobs.taskCreated, params);
+  async taskCreated(params: Omit<TaskCreatedEvent, 'leaderIds'>) {
+    const leaderIds = await this.getLeaderIds();
+
+    return this.notificationsClient.emit(eventsNotifications.taskCreated, {
+      ...params,
+      leaderIds,
+    });
   }
-  taskDeleted(
-    params: Parameters<NotificationsService["notifyTaskDeleted"]>[0],
-  ) {
-    return this.notificationsQueue.add(notificationsJobs.taskDeleted, params);
+  async taskDeleted(params: Omit<TaskDeletedEvent, 'leaderIds'>) {
+    const leaderIds = await this.getLeaderIds();
+
+    return this.notificationsClient.emit(eventsNotifications.taskDeleted, {
+      ...params,
+      leaderIds,
+    });
   }
 }
