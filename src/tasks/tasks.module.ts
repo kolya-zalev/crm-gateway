@@ -1,11 +1,12 @@
-import { Module } from "@nestjs/common";
-import { LeadsModule } from "../leads/leads.module";
-import { NotificationsModule } from "../notifications/notifications.module";
-import { TasksController, LeadTasksController } from "./tasks.controller";
-import { TasksFacade } from "./tasks.facade";
+import { Module } from '@nestjs/common';
+import { LeadsModule } from '../leads/leads.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { TasksController, LeadTasksController } from './tasks.controller';
+import { TasksFacade } from './tasks.facade';
+import { TasksClientModule } from './tasks-client.module';
 
 @Module({
-  imports: [LeadsModule, NotificationsModule],
+  imports: [LeadsModule, NotificationsModule, TasksClientModule],
   controllers: [TasksController, LeadTasksController],
   providers: [TasksFacade],
 })

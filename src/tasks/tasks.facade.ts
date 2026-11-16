@@ -1,53 +1,77 @@
-import { Injectable } from "@nestjs/common";
-import { CreateTaskDto, UpdateTaskDto } from "./dto/task.dto";
-import { Actor, leadsMessages } from "@crm/shared";
-import { LeadsClient } from "../leads/leads.client";
-import { NotificationsProducer } from "../notifications/notifications.producer";
+import { Injectable } from '@nestjs/common';
+import { Actor, leadsMessages, tasksMessages } from '@crm/shared';
+import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
+import { NotificationsProducer } from '../notifications/notifications.producer';
+import { LeadsClient } from '../leads/leads.client';
+import { TasksClient } from './tasks.client';
+import { Logger } from '@nestjs/common';
 @Injectable()
 export class TasksFacade {
+  private readonly logger = new Logger(TasksFacade.name);
 
   constructor(
-    private readonly tasks: LeadsClient,
-    private readonly notificationsProducer: NotificationsProducer,
+    private readonly tasks: TasksClient,
+    private readonly leads: LeadsClient,
+    private readonly notifications: NotificationsProducer,
   ) {}
-  async findAll() {
-    return await this.tasks.send(leadsMessages.tasksFindAll, {});
+
+  findAll() {
+    return this.tasks.send(tasksMessages.tasksFindAll, {});
   }
-  async findByLead(leadId: string) {
-    return await this.tasks.send(leadsMessages.tasksFindByLead, { leadId });
+
+  findByLead(leadId: string) {
+    return this.tasks.send(tasksMessages.tasksFindByLead, { leadId });
   }
-  async update(taskId: string, dto: UpdateTaskDto) {
-    return await this.tasks.send(leadsMessages.tasksUpdate, {
+
+  update(taskId: string, dto: UpdateTaskDto) {
+    return this.tasks.send(tasksMessages.tasksUpdate, {
       taskId,
       data: dto,
     });
   }
-  async create(leadId: string, dto: CreateTaskDto, actor: Actor) {
-    const { task, leadName } = await this.tasks.send(
-      leadsMessages.tasksCreate,
-      { leadId, data: dto, actor },
-    );
 
-    await this.notificationsProducer.taskCreated({
+  async create(leadId: string, dto: CreateTaskDto, actor: Actor) {
+    const lead = await this.leads.send(leadsMessages.leadsFindOne, {
+      id: leadId,
+    });
+
+    const task = await this.tasks.send(tasksMessages.tasksCreate, {
+      leadId,
+      data: dto,
+    });
+
+    await this.notifications.taskCreated({
       actor,
       leadId,
-      leadName,
+      leadName: lead.name,
       taskTitle: task.title,
     });
 
     return task;
   }
-  async remove(taskId: string, actor: Actor) {
-    const { task, leadName } = await this.tasks.send(
-      leadsMessages.tasksRemove,
-      { taskId },
-    );
 
-    await this.notificationsProducer.taskDeleted({
-      actor,
-      leadId: task.leadId,
-      leadName,
-      assignTask: task.title,
-    });
+  async remove(taskId: string, actor: Actor) {
+    const task = await this.tasks.send(tasksMessages.tasksRemove, { taskId });
+
+    try {
+      const lead = await this.leads.send(leadsMessages.leadsFindOne, {
+        id: task.leadId,
+      });
+
+      await this.notifications.taskDeleted({
+        actor,
+        leadId: task.leadId,
+        leadName: lead.name,
+        assignTask: task.title,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to emit taskDeleted event for task ${taskId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+
+    return task;
   }
 }

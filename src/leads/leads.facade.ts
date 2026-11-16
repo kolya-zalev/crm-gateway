@@ -1,15 +1,19 @@
-import { Injectable } from "@nestjs/common";
-import type { Actor } from "../auth/current-user.decorator";
-import { UsersService } from "../users/users.service";
-import { CreateLeadDto, UpdateLeadDto } from "./dto/lead.dto";
-import { leadsMessages, permissions } from "@crm/shared";
-import { LeadsClient } from "./leads.client";
-import { NotificationsProducer } from "../notifications/notifications.producer";
+import { Injectable } from '@nestjs/common';
+import type { Actor } from '../auth/current-user.decorator';
+import { UsersService } from '../users/users.service';
+import { CreateLeadDto, UpdateLeadDto } from './dto/lead.dto';
+import { leadsEvents, leadsMessages, permissions } from '@crm/shared';
+import { LeadsClient } from './leads.client';
+import { NotificationsProducer } from '../notifications/notifications.producer';
+import { TasksClient } from '../tasks/tasks.client';
+import { Logger } from '@nestjs/common';
 @Injectable()
 export class LeadsFacade {
+  private readonly logger = new Logger(LeadsFacade.name);
   constructor(
     private readonly leads: LeadsClient,
     private readonly users: UsersService,
+    private readonly tasks: TasksClient,
     private readonly notificationsProducer: NotificationsProducer,
   ) {}
   async findAll() {
@@ -28,18 +32,30 @@ export class LeadsFacade {
     );
   }
   async remove(id: string) {
-    return this.leads.send(leadsMessages.leadsRemove, { id });
+    const result = await this.leads.send(leadsMessages.leadsRemove, { id });
+
+    try {
+      await this.tasks.emit(leadsEvents.leadDeleted, { leadId: id });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to emit leadDeleted event for lead ${id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+
+    return result;
   }
   async update(id: string, dto: UpdateLeadDto, actor: Actor) {
     let assignee: { id: string; name: string } | null | undefined;
-    if (typeof dto.assignedToId === "string") {
+    if (typeof dto.assignedToId === 'string') {
       const canAssign =
         dto.assignedToId === actor.id ||
         actor.permissions.includes(permissions.leadAssign);
 
       assignee = canAssign
         ? await this.users.getAssignable(dto.assignedToId)
-        : { id: dto.assignedToId, name: "" };
+        : { id: dto.assignedToId, name: '' };
     } else if (dto.assignedToId === null) {
       assignee = null;
     }

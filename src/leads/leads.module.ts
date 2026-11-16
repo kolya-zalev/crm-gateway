@@ -1,24 +1,26 @@
-import { Module } from "@nestjs/common";
-import { ClientsModule, Transport } from "@nestjs/microservices";
+import { Module } from '@nestjs/common';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import {
   LEADS_SERVICE,
   LEADS_SERVICE_DEFAULT_PORT,
   LEADS_SERVICE_HOST,
   LEADS_SERVICE_PORT,
-} from "@crm/shared";
-import { LeadsController } from "./leads.controller";
-import { LeadsClient } from "./leads.client";
-import { LeadsFacade } from "./leads.facade";
-import { NotificationsModule } from "../notifications/notifications.module";
-import { UsersModule } from "../users/users.module";
+} from '@crm/shared';
+import { LeadsController } from './leads.controller';
+import { LeadsClient } from './leads.client';
+import { LeadsFacade } from './leads.facade';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { UsersModule } from '../users/users.module';
+import { TasksClientModule } from "../tasks/tasks-client.module"
 @Module({
   imports: [
+    TasksClientModule,
     ClientsModule.register([
       {
         name: LEADS_SERVICE,
         transport: Transport.TCP,
         options: {
-          host: process.env[LEADS_SERVICE_HOST] ?? "localhost",
+          host: process.env[LEADS_SERVICE_HOST] ?? 'localhost',
           port:
             Number(process.env[LEADS_SERVICE_PORT]) ||
             LEADS_SERVICE_DEFAULT_PORT,
