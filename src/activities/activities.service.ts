@@ -1,12 +1,14 @@
-import { Injectable } from "@nestjs/common";
-import { leadsMessages, type ActivityDto } from "@crm/shared";
-import { LeadsClient } from "../leads/leads.client";
+import { Injectable } from '@nestjs/common';
+import { activitiesMessages, type ActivityDto } from '@crm/shared';
+import { ActivityClient } from './activity.client';
 
 @Injectable()
 export class ActivitiesService {
-  constructor(private readonly leads: LeadsClient) {}
+  constructor(private readonly activity: ActivityClient) {}
 
   findByLead(leadId: string): Promise<ActivityDto[]> {
-    return this.leads.send(leadsMessages.activitiesFindByLead, { leadId });
+    return this.activity.send(activitiesMessages.activitiesFindByLead, {
+      leadId,
+    });
   }
 }

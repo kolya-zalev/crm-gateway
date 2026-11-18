@@ -2,7 +2,12 @@ import { Injectable } from '@nestjs/common';
 import type { Actor } from '../auth/current-user.decorator';
 import { UsersService } from '../users/users.service';
 import { CreateLeadDto, UpdateLeadDto } from './dto/lead.dto';
-import { leadsEvents, leadsMessages, permissions } from '@crm/shared';
+import {
+  leadsEvents,
+  leadsMessages,
+  permissions,
+  type LeadChanges,
+} from '@crm/shared';
 import { LeadsClient } from './leads.client';
 import { NotificationsProducer } from '../notifications/notifications.producer';
 import { Logger } from '@nestjs/common';
@@ -27,22 +32,24 @@ export class LeadsFacade {
     );
   }
   async create(dto: CreateLeadDto, actor: Actor) {
-    return this.attachAssignee(
-      await this.leads.send(leadsMessages.leadsCreate, { actor, data: dto }),
-    );
+    const lead = await this.leads.send(leadsMessages.leadsCreate, {
+      actor,
+      data: dto,
+    });
+
+    await this.events.tryPublish(leadsEvents.leadCreated, {
+      actor,
+      leadId: lead.id,
+      leadName: lead.name,
+      occurredAt: new Date().toISOString(),
+    });
+
+    return this.attachAssignee(lead);
   }
   async remove(id: string) {
     const result = await this.leads.send(leadsMessages.leadsRemove, { id });
 
-    try {
-      await this.events.publish(leadsEvents.leadDeleted, { leadId: id });
-    } catch (error) {
-      this.logger.warn(
-        `Failed to publish leadDeleted event for lead ${id}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    }
+    await this.events.tryPublish(leadsEvents.leadDeleted, { leadId: id });
 
     return result;
   }
@@ -65,11 +72,20 @@ export class LeadsFacade {
       data: dto,
       assignee,
     });
-    await this.sendUpdateNotifications({
-      actor,
-      lead: { id: lead.id, name: lead.name },
-      ...changes,
-    });
+    try {
+      await this.publishUpdateEvents({
+        actor,
+        lead: { id: lead.id, name: lead.name },
+        occurredAt: new Date().toISOString(),
+        ...changes,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to publish update events for lead ${lead.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
     return this.attachAssignee(lead);
   }
   private async attachAssignees<T extends { assignedToId: string | null }>(
@@ -95,51 +111,61 @@ export class LeadsFacade {
     return withAssignee;
   }
 
-  private async sendUpdateNotifications(params: {
-    actor: Actor;
-    lead: { id: string; name: string };
-    assignedChanged: boolean;
-    nextAssignee: { id: string; name: string } | null | undefined;
-    statusChanged: boolean;
-    closing: boolean;
-    newStatus?: string;
-  }): Promise<void> {
+  private async publishUpdateEvents(
+    params: LeadChanges & {
+      actor: Actor;
+      lead: { id: string; name: string };
+      occurredAt: string;
+    },
+  ): Promise<void> {
     const {
       actor,
       lead,
+      occurredAt,
       assignedChanged,
       nextAssignee,
       statusChanged,
       closing,
       newStatus,
+      previousStatus,
+      previousAssigneeName,
     } = params;
+    const base = { actor, leadId: lead.id, leadName: lead.name, occurredAt };
 
     if (assignedChanged && nextAssignee) {
       await this.notificationsProducer.leadAssigned({
-        actor,
+        ...base,
         assignedId: nextAssignee.id,
         assignedName: nextAssignee.name,
-        leadId: lead.id,
-        leadName: lead.name,
+        previousAssigneeName,
+      });
+    }
+
+    if (assignedChanged && !nextAssignee) {
+      await this.events.publish(leadsEvents.leadUnassigned, {
+        ...base,
+        previousAssigneeName,
       });
     }
 
     if (closing && newStatus) {
       await this.notificationsProducer.leadClosed({
-        actor,
-        leadId: lead.id,
-        leadName: lead.name,
+        ...base,
         status: newStatus,
+        previousStatus,
       });
     }
 
     if (statusChanged && !closing && newStatus) {
       await this.notificationsProducer.leadStatusChanged({
-        actor,
-        leadId: lead.id,
-        leadName: lead.name,
+        ...base,
         status: newStatus,
+        previousStatus,
       });
+    }
+
+    if (!statusChanged && !assignedChanged) {
+      await this.events.publish(leadsEvents.leadUpdated, base);
     }
   }
 }
