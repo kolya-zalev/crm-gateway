@@ -13,6 +13,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bodyParser: false,
   });
+  app.enableShutdownHooks();
 
   app.enableCors({
     origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',

@@ -14,6 +14,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { UsersModule } from './users/users.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RolesModule } from './roles/roles.module';
+import { EventsModule } from './events/events.module';
 @Module({
   imports: [
     PrismaModule,
@@ -23,6 +24,7 @@ import { RolesModule } from './roles/roles.module';
     ActivitiesModule, // /api/leads/:id/activities
     TasksModule, // /api/tasks + /api/leads/:id/tasks
     TeamModule, // /api/team
+    EventsModule,
     RolesModule,
     ChatModule,
     AnalyticsModule,

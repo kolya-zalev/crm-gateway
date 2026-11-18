@@ -11,10 +11,8 @@ import { LeadsClient } from './leads.client';
 import { LeadsFacade } from './leads.facade';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
-import { TasksClientModule } from "../tasks/tasks-client.module"
 @Module({
   imports: [
-    TasksClientModule,
     ClientsModule.register([
       {
         name: LEADS_SERVICE,

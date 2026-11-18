@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { NotificationsClient } from './notifications.client';
 import { UsersService } from '../users/users.service';
 import {
   eventsNotifications,
@@ -10,10 +9,11 @@ import {
   TaskCreatedEvent,
   TaskDeletedEvent,
 } from '@crm/shared';
+import { EventsBus } from '../events/events-bus';
 @Injectable()
 export class NotificationsProducer {
   constructor(
-    private readonly notificationsClient: NotificationsClient,
+    private readonly events: EventsBus,
     private readonly users: UsersService,
   ) {}
   private async getLeaderIds(): Promise<string[]> {
@@ -24,14 +24,14 @@ export class NotificationsProducer {
   }
   async leadAssigned(params: Omit<LeadAssignedEvent, 'leaderIds'>) {
     const leaderIds = await this.getLeaderIds();
-    return this.notificationsClient.emit(eventsNotifications.leadAssigned, {
+    return this.events.publish(eventsNotifications.leadAssigned, {
       ...params,
       leaderIds,
     });
   }
   async leadClosed(params: Omit<LeadClosedEvent, 'leaderIds'>) {
     const leaderIds = await this.getLeaderIds();
-    return this.notificationsClient.emit(eventsNotifications.leadClosed, {
+    return this.events.publish(eventsNotifications.leadClosed, {
       ...params,
       leaderIds,
     });
@@ -39,18 +39,15 @@ export class NotificationsProducer {
   async leadStatusChanged(params: Omit<LeadStatusChangedEvent, 'leaderIds'>) {
     const leaderIds = await this.getLeaderIds();
 
-    return this.notificationsClient.emit(
-      eventsNotifications.leadStatusChanged,
-      {
-        ...params,
-        leaderIds,
-      },
-    );
+    return this.events.publish(eventsNotifications.leadStatusChanged, {
+      ...params,
+      leaderIds,
+    });
   }
   async taskCreated(params: Omit<TaskCreatedEvent, 'leaderIds'>) {
     const leaderIds = await this.getLeaderIds();
 
-    return this.notificationsClient.emit(eventsNotifications.taskCreated, {
+    return this.events.publish(eventsNotifications.taskCreated, {
       ...params,
       leaderIds,
     });
@@ -58,7 +55,7 @@ export class NotificationsProducer {
   async taskDeleted(params: Omit<TaskDeletedEvent, 'leaderIds'>) {
     const leaderIds = await this.getLeaderIds();
 
-    return this.notificationsClient.emit(eventsNotifications.taskDeleted, {
+    return this.events.publish(eventsNotifications.taskDeleted, {
       ...params,
       leaderIds,
     });

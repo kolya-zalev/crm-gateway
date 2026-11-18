@@ -5,15 +5,15 @@ import { CreateLeadDto, UpdateLeadDto } from './dto/lead.dto';
 import { leadsEvents, leadsMessages, permissions } from '@crm/shared';
 import { LeadsClient } from './leads.client';
 import { NotificationsProducer } from '../notifications/notifications.producer';
-import { TasksClient } from '../tasks/tasks.client';
 import { Logger } from '@nestjs/common';
+import { EventsBus } from '../events/events-bus';
 @Injectable()
 export class LeadsFacade {
   private readonly logger = new Logger(LeadsFacade.name);
   constructor(
     private readonly leads: LeadsClient,
     private readonly users: UsersService,
-    private readonly tasks: TasksClient,
+    private readonly events: EventsBus,
     private readonly notificationsProducer: NotificationsProducer,
   ) {}
   async findAll() {
@@ -35,10 +35,10 @@ export class LeadsFacade {
     const result = await this.leads.send(leadsMessages.leadsRemove, { id });
 
     try {
-      await this.tasks.emit(leadsEvents.leadDeleted, { leadId: id });
+      await this.events.publish(leadsEvents.leadDeleted, { leadId: id });
     } catch (error) {
       this.logger.warn(
-        `Failed to emit leadDeleted event for lead ${id}: ${
+        `Failed to publish leadDeleted event for lead ${id}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
